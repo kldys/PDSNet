@@ -13,13 +13,34 @@ from utils import PSNR
 import os, time, datetime
 from skimage.metrics import structural_similarity as compare_ssim
 
+class CustomLoss(nn.Module):
+    def __init__(self):
+        super(CustomLoss, self).__init__()
+
+    def forward(self, x, y):
+        tensor_gpu = torch.tensor(x).cuda()
+        tensor_cpu = tensor_gpu.cpu()
+        img1 = tensor_cpu.numpy()
+        tensor_gpu = torch.tensor(y).cuda()
+        tensor_cpu = tensor_gpu.cpu()
+        img2 = tensor_cpu.numpy()
+        edge_output1 = cv.Canny(img1.astype(np.uint8), 50, 150)
+        edge_output1[edge_output1 == 255] = 1
+
+        edge_output2 = cv.Canny(img2.astype(np.uint8), 50, 150)
+        edge_output2[edge_output2 == 255] = 1
+        a3 = abs(edge_output1.astype(np.float32) - edge_output2.astype(np.float32))
+        edge_loss = torch.tensor(sum(a3)).cuda(0)
+        mse_loss = torch.mean(torch.pow((x - y), 2))+edge_loss
+        return mse_loss
+
 def train(use_gpu=True):
 
     train_data = Train_Data(opt.data_root)
     train_loader = DataLoader(train_data, opt.batch_size, shuffle=True)
 
     net = PDSNet()
-    criterion = nn.MSELoss()
+    criterion = CustomLoss()
     if use_gpu:
         net = net.cuda()
         net = nn.DataParallel(net)
